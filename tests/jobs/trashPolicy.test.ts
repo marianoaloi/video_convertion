@@ -11,7 +11,9 @@ const base: TrashFacts = {
   maxCapacityMb: null,
   volumeSize: 1000 * GIB,
   freeBytes: 500 * GIB,
-  fileSize: 100 * 1024 * 1024
+  fileSize: 100 * 1024 * 1024,
+  pathLength: 40,
+  isExtended: false
 }
 const reason = (over: Partial<TrashFacts>): string => {
   const d = decideWindowsTrash({ ...base, ...over })
@@ -61,7 +63,9 @@ describe('decideWindowsTrash', () => {
       maxCapacityMb: null,
       volumeSize: 10,
       freeBytes: 5,
-      fileSize: 2
+      fileSize: 2,
+      pathLength: 0,
+      isExtended: false
     })
     assert.deepEqual(parseTrashFacts(`${text}\n`), {
       drive: 'D:\\',
@@ -71,7 +75,9 @@ describe('decideWindowsTrash', () => {
       maxCapacityMb: null,
       volumeSize: 10,
       freeBytes: 5,
-      fileSize: 2
+      fileSize: 2,
+      pathLength: 0,
+      isExtended: false
     })
     assert.throws(() => parseTrashFacts('nope'))
   })
