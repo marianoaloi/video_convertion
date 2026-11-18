@@ -1,0 +1,1 @@
+    if (absolute.startsWith('\\\\?\\')) throw new Error('Not moved to the trash: extended-length (\\\\?\\) paths cannot be sent to the Recycle Bin')
