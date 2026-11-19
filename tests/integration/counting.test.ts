@@ -9,14 +9,14 @@ import { CPU, base, makeTmp, put, runCli, runJson, scanOf, summaryOf, SKIP, type
 /**
  * root/
  *   a.mp4  b.mkv  "ação 1.mp4"  "with space.mp4"  old.mp4  UPPER.MP4      <- 6 sources
- *   old.mp4.0.mp4  old.mp4.mp4  old.mp4.0.part.mp4  x.part.mp4  y.copy.mp4 <- earlier outputs
+ *   old.mp4.0.mp4  old.mp4.mp4  old.mp4.0.part.mp4  old.mp4.part.mp4  old.mp4.copy.mp4 <- earlier outputs
  *   package.json  notes.txt  cover.jpg  readme.md                          <- not videos
  *   sub/c.mp4  sub/deeper/d.webm                                           <- 2 more with -r
  *   .hidden/e.mp4  ruimFolder/f.mp4  sub/ruimFolder/g.mp4  sub/.cache/h.mp4 <- never
  */
 async function countingTree(root: string): Promise<void> {
   for (const n of ['a.mp4', 'b.mkv', 'ação 1.mp4', 'with space.mp4', 'old.mp4', 'UPPER.MP4']) await put(path.join(root, n))
-  for (const n of ['old.mp4.0.mp4', 'old.mp4.mp4', 'old.mp4.0.part.mp4', 'x.part.mp4', 'y.copy.mp4']) await put(path.join(root, n))
+  for (const n of ['old.mp4.0.mp4', 'old.mp4.mp4', 'old.mp4.0.part.mp4', 'old.mp4.part.mp4', 'old.mp4.copy.mp4']) await put(path.join(root, n))
   await put(path.join(root, 'package.json'), '{"name":"not-a-job"}')
   for (const n of ['notes.txt', 'cover.jpg', 'readme.md']) await put(path.join(root, n), 'x')
   await put(path.join(root, 'sub', 'c.mp4'))

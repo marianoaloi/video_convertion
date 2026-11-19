@@ -166,7 +166,8 @@ class Run {
   }
 
   private interruptedDuringScan(scan: ScanResult, startedAt: number): RunSummary {
-    const counters = { total: 0, queued: 0, processing: 0, done: 0, failed: 0, cancelled: 0, skipped: scan.skipped.length }
+    const total = scan.jobs.length
+    const counters = { total, queued: 0, processing: 0, done: 0, failed: 0, cancelled: total, skipped: scan.skipped.length }
     this.emit({ type: 'counters', counters })
     return { counters, startedAt, finishedAt: this.deps.now(), outputs: [], failures: [], interrupted: true }
   }
