@@ -61,6 +61,8 @@ describe('finding ffmpeg', { skip: SKIP }, () => {
   it('--ffmpeg <its folder>, and the folder above a bin/ folder', async () => {
     const r = await runJson(['--ffmpeg', realBin, ...CPU, video], { env: envWithoutFfmpeg() })
     assert.equal(r.code, 0, r.stderr)
+    // The folder above `bin/` only works when ffmpeg really lives in a `bin` folder (not in every install layout).
+    if (path.basename(realBin).toLowerCase() !== 'bin') return
     const above = await runJson(['--list', '--ffmpeg', path.dirname(realBin), video], { env: envWithoutFfmpeg() })
     assert.equal(above.code, 0, above.stderr)
   })
