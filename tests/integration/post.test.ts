@@ -98,7 +98,7 @@ describe('--delete-original', { skip: SKIP }, () => {
     assert.deepEqual(await names(tmp.dir), ['v.mp4', 'v.mp4.0.mp4'])
   })
 
-  it('trash (default mode, Windows): the source goes to the Recycle Bin and the output takes its name', { skip: IS_WIN ? false : 'Windows only' }, async () => {
+  it('trash (default mode, Windows): the source goes to the Recycle Bin and the output takes its name', { skip: !IS_WIN ? 'Windows only' : process.env['CI'] !== undefined ? 'CI runners have no usable Recycle Bin' : false }, async () => {
     const unique = `vconv-it-trash-${randomBytes(4).toString('hex')}.mp4`
     const v = await clip(path.join(tmp.dir, unique), { w: 1280, h: 720 })
     await put(`${v}.json`, JSON.stringify({ times: [], posExecution: 1 }))
