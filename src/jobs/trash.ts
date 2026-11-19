@@ -75,7 +75,14 @@ async function trashWindows(absolute: string, exec: TrashExec, baseEnv: NodeJS.P
   const decision = decideWindowsTrash(facts)
   if (!decision.ok) throw new Error(`Not moved to the trash: ${decision.reason}`)
 
-  const output = String((await exec('powershell.exe', [...PS_ARGS, WIN_DELETE_SCRIPT], env)) ?? '')
+  let output: string
+  try {
+    output = String((await exec('powershell.exe', [...PS_ARGS, WIN_DELETE_SCRIPT], env)) ?? '')
+  } catch (error) {
+    // The script may have died after the delete ran: say which state the file is in.
+    const state = (await exists(absolute)) ? 'the file was kept' : 'the file is gone, check the Recycle Bin'
+    throw new Error(`${messageOf(error)} (${state})`)
+  }
   if (await exists(absolute)) throw new Error(STILL_THERE)
   const check = checkRecycled(output, absolute)
   // When the bin cannot be read the pre-flight's verdict stands; a readable bin without a record
@@ -103,6 +110,10 @@ const MAC_SCRIPT = [
 ]
 
 async function trashMac(absolute: string, exec: TrashExec, env: NodeJS.ProcessEnv): Promise<void> {
+  // `as alias` resolves a symlink to its target, which Finder would then trash instead of the link.
+  if ((await lstat(absolute)).isSymbolicLink()) {
+    throw new Error('Not moved to the trash: the file is a symbolic link')
+  }
   await exec('osascript', [...MAC_SCRIPT.flatMap((line) => ['-e', line]), absolute], env)
   if (await exists(absolute)) throw new Error(STILL_THERE)
 }
@@ -120,9 +131,7 @@ const MAX_TRASH_NAMES = 10_000
  */
 export async function trashFreedesktop(target: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const absolute = path.resolve(target)
-  const dataHome = env['XDG_DATA_HOME'] !== undefined && path.isAbsolute(env['XDG_DATA_HOME'])
-    ? env['XDG_DATA_HOME']
-    : path.join(env['HOME'] ?? os.homedir(), '.local', 'share')
+  const dataHome = absoluteOr(env['XDG_DATA_HOME'], () => path.join(absoluteOr(env['HOME'], os.homedir), '.local', 'share'))
   const filesDir = path.join(dataHome, 'Trash', 'files')
   const infoDir = path.join(dataHome, 'Trash', 'info')
   await mkdir(filesDir, { recursive: true, mode: 0o700 })
@@ -131,15 +140,15 @@ export async function trashFreedesktop(target: string, env: NodeJS.ProcessEnv = 
   const base = path.basename(absolute)
   const info = `[Trash Info]\nPath=${encodeTrashPath(absolute)}\nDeletionDate=${deletionDate(new Date())}\n`
   for (let n = 0; n < MAX_TRASH_NAMES; n++) {
-    const name = n === 0 ? base : `${base}.${n}`
+    const name = trashName(base, n)
     const infoPath = path.join(infoDir, `${name}.trashinfo`)
     const filePath = path.join(filesDir, name)
     if (!(await reserve(infoPath, info))) continue
-    if (await pathTaken(filePath)) {
-      await rm(infoPath, { force: true })
-      continue
-    }
     try {
+      if (await pathTaken(filePath)) {
+        await rm(infoPath, { force: true })
+        continue
+      }
       await rename(absolute, filePath)
       return
     } catch (error) {
@@ -153,6 +162,22 @@ export async function trashFreedesktop(target: string, env: NodeJS.ProcessEnv = 
   throw new Error(`Not moved to the trash: no free name for ${base} in ${filesDir}`)
 }
 
+/** `value` when it is an absolute path, else `fallback()`. */
+function absoluteOr(value: string | undefined, fallback: () => string): string {
+  return value !== undefined && path.isAbsolute(value) ? value : fallback()
+}
+
+const NAME_MAX = 255
+const TRASHINFO_SUFFIX = '.trashinfo'
+
+/** `base`, or `base.N`, with the stem shortened so that `<name>.trashinfo` fits in NAME_MAX bytes. */
+function trashName(base: string, n: number): string {
+  const suffix = n === 0 ? '' : `.${n}`
+  let stem = base
+  while (Buffer.byteLength(stem + suffix + TRASHINFO_SUFFIX) > NAME_MAX && stem.length > 1) stem = stem.slice(0, -1)
+  return stem + suffix
+}
+
 /** Creates `file` only when it does not exist yet. False when it already does. */
 async function reserve(file: string, content: string): Promise<boolean> {
   let handle
@@ -164,6 +189,9 @@ async function reserve(file: string, content: string): Promise<boolean> {
   }
   try {
     await handle.writeFile(content, 'utf8')
+  } catch (error) {
+    await rm(file, { force: true })
+    throw error
   } finally {
     await handle.close()
   }

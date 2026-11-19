@@ -1,0 +1,101 @@
+name: Release
+
+# Builds the vconv CLI when a pull request is merged into master (a merge is a push to master),
+# then publishes it as one GitHub Release. Can also be started by hand from the Actions tab.
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Two merges in a row must not publish at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Typecheck and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Some tests render real media with ffmpeg and skip themselves when it is missing.
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Not blocking on Linux yet: the suite was written and run on Windows.
+      - name: Unit tests
+        run: npm test
+        continue-on-error: ${{ runner.os == 'Linux' }}
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Get package version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The compiled CLI plus what it needs to run: `node dist/src/cli/main.js`.
+      - name: Package CLI
+        run: |
+          mkdir -p release-artifacts
+          tar -czf "release-artifacts/vconv-${{ steps.pkg.outputs.version }}.tar.gz" \
+            dist/src package.json
+          zip -qr "release-artifacts/vconv-${{ steps.pkg.outputs.version }}.zip" \
+            dist/src package.json
+          ls -lh release-artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.pkg.outputs.version }}-${{ github.run_number }}
+          name: vconv v${{ steps.pkg.outputs.version }} (build ${{ github.run_number }})
+          generate_release_notes: true
+          body: |
+            Automated release from a merge into master.
+            Unpack, then run `node dist/src/cli/main.js` (Node 18.20.2 or newer).
+            ffmpeg and ffprobe must be installed and on PATH.
+            Commit: ${{ github.sha }}
+          files: release-artifacts/*
+          fail_on_unmatched_files: true

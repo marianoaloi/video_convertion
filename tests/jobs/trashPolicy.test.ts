@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { decideWindowsTrash, parseTrashFacts, type TrashFacts } from '../../src/jobs/trashPolicy.js'
+import { PATH_REFUSAL_LENGTH, decideWindowsTrash, parseTrashFacts, type TrashFacts } from '../../src/jobs/trashPolicy.js'
 
 const GIB = 1024 ** 3
 const base: TrashFacts = {
@@ -52,6 +52,19 @@ describe('decideWindowsTrash', () => {
 
   it('never assumes more than the free space', () => {
     assert.match(reason({ freeBytes: 10 * 1024 * 1024, fileSize: 20 * 1024 * 1024 }), /larger than the Recycle Bin/)
+  })
+
+  it('refuses extended-length and too-long paths', () => {
+    assert.match(reason({ isExtended: true }), /extended-length/)
+    assert.match(reason({ pathLength: PATH_REFUSAL_LENGTH }), /too long/)
+    assert.equal(reason({ pathLength: PATH_REFUSAL_LENGTH - 1 }), 'ok')
+  })
+
+  it('parses non-default path facts', () => {
+    const text = JSON.stringify({ ...base, pathLength: 300, isExtended: true })
+    const parsed = parseTrashFacts(text)
+    assert.equal(parsed.pathLength, 300)
+    assert.equal(parsed.isExtended, true)
   })
 
   it('parses the PowerShell facts JSON', () => {
