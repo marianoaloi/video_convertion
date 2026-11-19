@@ -141,7 +141,8 @@ describe('removeFile', () => {
     assert.match(info, /a%20b\.mp4/)
   })
 
-  it('really sends a small file to the Recycle Bin on win32', { skip: process.platform !== 'win32' }, async () => {
+  // CI runners have no usable per-user Recycle Bin, so the `$I` record is never found there.
+  it('really sends a small file to the Recycle Bin on win32', { skip: process.platform !== 'win32' || process.env['CI'] !== undefined }, async () => {
     const file = await write(path.join(tmp.dir, "to recycle; $x 'q'.mp4"))
     await removeFile(file, 'trash')
     assert.ok(!(await exists(file)))
