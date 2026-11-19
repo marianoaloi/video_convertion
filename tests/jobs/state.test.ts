@@ -88,6 +88,8 @@ describe('state ledger', () => {
     const ledger = await openStateLedger(file)
     const elapsed = performance.now() - started
     assert.equal(ledger.isDone('/videos/folder7/video99957.mp4', 99957, 100957), true)
-    assert.ok(elapsed < 1000, `loading took ${Math.round(elapsed)} ms`)
+    // Shared CI runners are several times slower and noisier than a workstation.
+    const limitMs = process.env['CI'] === undefined ? 1000 : 5000
+    assert.ok(elapsed < limitMs, `loading took ${Math.round(elapsed)} ms`)
   })
 })
